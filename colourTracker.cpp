@@ -14,8 +14,14 @@ private:
     static const int LOWPASS_SIZE = 1;
     static const int MIN_AREA_TO_CARE_ABOUT = 1000;
 
+    static const Scalar defaultLowThreshold;
+    static const Scalar defaultHighThreshold;
+
     vector<double> xVals;
     vector<double> yVals;
+
+    double x;
+    double y;
 
     Scalar lowerThresholdValue;
     Scalar higherThresholdvalue;
@@ -27,7 +33,21 @@ private:
     bool inDebug;
 
 public:
-    ColourTracker(Scalar lowThreshold = Scalar(0, 103, 59), Scalar highThreshold = Scalar(20, 255, 255), bool debug = true) {
+    ColourTracker() {
+        xVals = vector<double>(LOWPASS_SIZE, 0);
+        yVals = vector<double>(LOWPASS_SIZE, 0);
+        if (!setupCapture()) {
+            exit(-1);
+        }
+        lowerThresholdValue = defaultLowThreshold;
+        higherThresholdvalue = defaultHighThreshold;
+
+        inDebug = true;
+        x = 0;
+        y = 0;
+    }
+
+    ColourTracker(Scalar lowThreshold, Scalar highThreshold, bool debug = true) {
         xVals = vector<double>(LOWPASS_SIZE, 0);
         yVals = vector<double>(LOWPASS_SIZE, 0);
         if (!setupCapture()) {
@@ -37,6 +57,8 @@ public:
         higherThresholdvalue = highThreshold;
 
         inDebug = debug;
+        x = 0;
+        y = 0;
     }
 
     void trackColour() {
@@ -53,15 +75,14 @@ public:
             if (best.size() > 0) {
                 Rect bRect = boundingRect(best);
 
-                pair<double, double> xy = getXY(bRect, contourArea(best));
+                getXY(bRect, contourArea(best));
 
                 if (inDebug) {
-                    circle(frame, Point(xy.first + cap.get(CV_CAP_PROP_FRAME_WIDTH)/2.0, xy.second + cap.get(CV_CAP_PROP_FRAME_HEIGHT)/2.0), bRect.height/2, Scalar( 0, 255, 0), -1);
-                    //drawContours(frame, thing, -1, Scalar(0, 255, 0), CV_FILLED);
+                    circle(frame, Point(x + cap.get(CV_CAP_PROP_FRAME_WIDTH)/2.0, y + cap.get(CV_CAP_PROP_FRAME_HEIGHT)/2.0), bRect.height/2, Scalar( 0, 255, 0), -1);
                     imshow("Frame", frame);
                 }
 
-                cout << "XError: " << xy.first << " YError: " << xy.second << endl << endl;
+                output();
 
                 if(waitKey(30) >= 0)
                     break;
@@ -69,7 +90,7 @@ public:
         }
     }
 
-    pair<double, double> getXY(Rect bRect, int area) {
+    void getXY(Rect bRect, int area) {
         double cx = bRect.x + (bRect.width / 2);
         double cy = bRect.y + (bRect.height / 2);
         double XError = cx - cap.get(CV_CAP_PROP_FRAME_WIDTH)/2.0;
@@ -82,10 +103,12 @@ public:
             yVals.push_back(YError);
         }
 
-        double x = accumulate(xVals.begin(), xVals.end(), 0.0)/xVals.size();
-        double y = accumulate(yVals.begin(), yVals.end(), 0.0)/yVals.size();
+        x = accumulate(xVals.begin(), xVals.end(), 0.0)/xVals.size();
+        y = accumulate(yVals.begin(), yVals.end(), 0.0)/yVals.size();
+    }
 
-        return make_pair(x, y);
+    void output() {
+        cout << "XError: " << x << " YError: " << y << endl << endl;
     }
 
     vector<Point> findBestContour() {
@@ -114,8 +137,12 @@ public:
 
 };
 
-int main(int, char**)
+const Scalar ColourTracker::defaultLowThreshold = Scalar(0, 103, 59); 
+const Scalar ColourTracker::defaultHighThreshold = Scalar(20, 255, 255);
+
+int main(int argc, char* argv[])
 {   
+    //Check to see if scalar information has been passed via command line
     ColourTracker tr = ColourTracker();
     tr.trackColour();
     return 0;
